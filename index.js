@@ -1,8 +1,9 @@
 const { composeCreatePullRequest } = require("octokit-plugin-create-pull-request");
 const YAML = require('yaml');
+const ejs = require('ejs')
 
 const owner_addon_repo = "Sebclem";
-const repo_addon_repo = "sebclem-hassio-addon-repository";
+const repo_addon_repo = "test_bot";
 
 
 /**
@@ -18,18 +19,14 @@ module.exports = app => {
         let version = context.payload.release.tag_name;
         let change_log = context.payload.release.body;
 
+        app.log.info(`New realese in ${repo_path} => ${version}`)
+        
         // Get addon manifest
-        let addon_manifest_str = (await context.github.repos.getContent({
-            owner: owner_addon_repo,
-            repo: repo_addon_repo,
-            path: ".addon.yml"
-        })).data.content;
-        let addon_manifest_str = Buffer.from(addon_manifest_str, "base64").toString();
-        let addon_manifest = YAML.parse(addon_manifest_str);
-
+        let addon_manifest = YAML.parse((await get_file_in_addon_repo(context, '.addon.yml')));
+        
         // Get the target and addon_name from the manifest
-        let target = "nextcloud_backup";
-        let addon_name = "nextcloud-backup";
+        let target = "";
+        let addon_name = "";
         for(let addon in addon_manifest.addons){
             let repo = addon_manifest.addons[addon].repository;
             if(repo == repo_path){
@@ -38,32 +35,49 @@ module.exports = app => {
             }
             
         }
-
-        let rdme_template = (await context.github.repos.getContent(context.repo({path: `${target}/.README.ejs`}))).data.content;
-        rdme_template = Buffer.from(rdme_template, "base64").toString();
-
-
+        
+        // Get Readme Template
+        let rdme_template = await get_file_in_current_repo(context, `${target}/.README.ejs`);
+        
+        // Get config.json
+        let config_json = await get_file_in_addon_repo(context, `${target}/config.json`);
+        config_json = JSON.parse(config_json);
+        
+        config_json['version'] = version;
+        config_json = JSON.stringify(config_json, null, 4)
+        
         let files = {};
         files[`${target}/CHANGELOG.md`] = change_log;
-        // let pr = await composeCreatePullRequest(context.github,{
-        //   owner: "Sebclem",
-        //   repo: "sebclem-hassio-addon-repository",
-        //   title: "bot-test",
-        //   body: "bot-test",
-        //   base: "master",
-        //   head: "pr-bot-test",
-        //   changes: {
-        //     files: {
-        //       "nextcloud_backup/README.md": "test"
-        //     },
-        //     commit: "Bot test"
-        //   }
-        // }
-        // );
+        files[`${target}/README.md`] = ejs.render(rdme_template, {version: version});
+        files[`${target}/config.json`] = config_json
+        
+        let commit_msg = `:arrow_up: Upgrade ${addon_name} to ${version}`
+        
+        
+        let pr = composeCreatePullRequest(context.github,{
+            owner: owner_addon_repo,
+            repo: repo_addon_repo,
+            title: `Upgrade ${addon_name} to ${version}` ,
+            body: "",
+            head: `${target}_${versionnp}`,
+            changes: 
+            [
+                {
+                    files: files,
+                    commit: commit_msg
+                }
+            ]
+        }
+        ).then(()=>{
+            context.log.info('Pull request created !')
+        }).catch((error)=>{
+            context.log.info(error)
+        });
         
         
         app.log.info('release ?');
     });
+    
     
     
     
@@ -93,5 +107,20 @@ module.exports = app => {
     //   body: fields.pr.body, // the body of your PR,
     //   maintainer_can_modify: true // allows maintainers to edit your app's PR
     // }))
+}
+
+
+async function get_file_in_current_repo(context, path){
+    let str = (await context.github.repos.getContent(context.repo({path: path}))).data.content;
+    return Buffer.from(str, "base64").toString();
+}
+
+async function get_file_in_addon_repo(context, path){
+    let str = (await context.github.repos.getContent({
+        owner: owner_addon_repo,
+        repo: repo_addon_repo,
+        path: path
+    })).data.content;
+    return Buffer.from(str, "base64").toString();
 }
 
