@@ -19,6 +19,7 @@
     "dev": "probot receive -e release.published -p test/fixtures/release.published.json ."
   },
   "dependencies": {
+    "docker-hub-api": "^0.8.0",
     "ejs": "^3.1.5",
     "octokit-plugin-create-pull-request": "^3.9.0",
     "probot": "^10.1.0",

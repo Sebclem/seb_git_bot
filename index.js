@@ -1,6 +1,8 @@
 const { composeCreatePullRequest } = require("octokit-plugin-create-pull-request");
 const YAML = require('yaml');
-const ejs = require('ejs')
+const ejs = require('ejs');
+
+let dockerHubAPI = require('docker-hub-api');
 
 const owner_addon_repo = "Sebclem";
 const repo_addon_repo = "test_bot";
@@ -20,6 +22,7 @@ module.exports = app => {
         let change_log = context.payload.release.body;
 
         app.log.info(`New realese in ${repo_path} => ${version}`)
+        app.log.info(`Building addon files...`)
         
         // Get addon manifest
         let addon_manifest = YAML.parse((await get_file_in_addon_repo(context, '.addon.yml')));
@@ -45,21 +48,65 @@ module.exports = app => {
         
         config_json['version'] = version;
         config_json = JSON.stringify(config_json, null, 4)
-        
+        // Edit files of addon
         let files = {};
         files[`${target}/CHANGELOG.md`] = change_log;
         files[`${target}/README.md`] = ejs.render(rdme_template, {version: version});
         files[`${target}/config.json`] = config_json
+        app.log.info(`...Done`)
         
+        // Global readme
+        app.log.info('Building global ReadMe...')
+        let template_context = {addons:[]}
+        for(let addon in addon_manifest.addons){
+            let repo_splited = addon_manifest.addons[addon].repository.split('/');
+            let target = addon_manifest.addons[addon].target;
+            let config_raw = await get_file_in_addon_repo(context, `${target}/config.json`);
+            let config = JSON.parse(config_raw);
+
+            let temp = {}
+            temp['name'] = config.name;
+            temp['version'] = config.version;
+            temp['slug'] = config.slug;
+            temp['description'] = config.description;
+            temp['armhf'] = config.arch.includes('armhf');
+            temp['armv7'] = config.arch.includes('armv7');
+            temp['aarch64'] = config.arch.includes('aarch64');
+            temp['amd64'] = config.arch.includes('amd64');
+            temp['i386'] = config.arch.includes('i386');
+            
+            let hub_url = config.image;
+            let max = -1;
+            let max_arch = "";
+            
+            for(let arch_i in config.arch){
+                let arch = config.arch[arch_i];
+                let url = hub_url.replace('{arch}', arch).split('/');
+                
+                let info =  dockerHubAPI.repository(url[0], url[1]);
+                if(info.pull_count > max)
+                    max = info.pull_count;
+                    max_arch = arch;
+                
+            }
+            temp['pull_image'] = hub_url.replace('{arch}', max_arch);
+            template_context.addons.push(temp);
+            
+        }
+        app.log.info('...Done')
+        let readme_global_template = await get_file_in_addon_repo(context, `.README.ejs`);
+        files['README.md'] = ejs.render(readme_global_template, template_context);
+
+
+
+        app.log.info('Creating Pull Request...')
         let commit_msg = `:arrow_up: Upgrade ${addon_name} to ${version}`
-        
-        
         let pr = composeCreatePullRequest(context.github,{
             owner: owner_addon_repo,
             repo: repo_addon_repo,
             title: `Upgrade ${addon_name} to ${version}` ,
             body: "",
-            head: `${target}_${versionnp}`,
+            head: `${target}_${version}`,
             changes: 
             [
                 {
@@ -69,44 +116,13 @@ module.exports = app => {
             ]
         }
         ).then(()=>{
-            context.log.info('Pull request created !')
+            context.log.info('...Done')
         }).catch((error)=>{
             context.log.info(error)
         });
         
         
-        app.log.info('release ?');
     });
-    
-    
-    
-    
-    
-    
-    // const branch = `add-${fields.file.path}` // your branch's name
-    // const content = Buffer.from(fields.file.content).toString('base64') // content for your configuration file
-    
-    // const reference = await context.github.gitdata.getReference(context.repo({ ref: 'heads/master' })) // get the reference for the master branch
-    
-    // const getBranch = await context.github.gitdata.createReference(context.repo({
-    //   ref: `refs/heads/${ branch }`,
-    //   sha: reference.data.object.sha
-    // })) // create a reference in git for your branch
-    
-    // const file = await context.github.repos.createFile(context.repo({
-    //   path: fields.file.path, // the path to your config file
-    //   message: `adds ${fields.file.path}`, // a commit message
-    //   content,
-    //   branch
-    // })) // create your config file
-    
-    // return await context.github.pullRequests.create(context.repo({
-    //   title: fields.pr.title, // the title of the PR
-    //   head: branch,
-    //   base: 'master', // where you want to merge your changes
-    //   body: fields.pr.body, // the body of your PR,
-    //   maintainer_can_modify: true // allows maintainers to edit your app's PR
-    // }))
 }
 
 
