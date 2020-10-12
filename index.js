@@ -4,8 +4,8 @@ const ejs = require('ejs');
 
 let dockerHubAPI = require('docker-hub-api');
 
-const owner_addon_repo = "Sebclem";
-const repo_addon_repo = "test_bot";
+const owner_addon_repo = process.env.OWNER_ADDON_REPO;
+const repo_addon_repo = process.env.REPO_ADDON_REPO;
 
 
 /**
@@ -122,6 +122,17 @@ module.exports = app => {
         });
         
         
+    });
+
+    app.on("workflow_run", async context => {
+        app.log.info('workflow !')
+        if(context.payload.workflow_run.event == "push"){
+            if(context.payload.workflow_run.conclusion == "success"){
+                let id = context.payload.workflow_run.id;
+                let repo_path = `${context.repo().owner}/${context.repo().repo}`;
+                let version = `dev_${id}`
+            }
+        }
     });
 }
 
