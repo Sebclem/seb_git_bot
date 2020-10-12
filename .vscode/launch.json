@@ -8,9 +8,9 @@
             "name": "Launch via NPM",
             "request": "launch",
             "runtimeArgs": [
-                "run",
-                "dev"
+                "start"
             ],
+            "env": {},
             "console": "integratedTerminal",
             "runtimeExecutable": "npm",
             "skipFiles": [
