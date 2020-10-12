@@ -25,4 +25,4 @@ jobs:
         push: true
         context: .
         tags: sebclemhassaddon/seb_git_bot:latest
-        file: .Dockerfile
+        file: ./Dockerfile
