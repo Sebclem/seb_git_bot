@@ -60,7 +60,8 @@ module.exports = app => {
         let template_context = {addons:[]}
         for(let addon in addon_manifest.addons){
             let repo_splited = addon_manifest.addons[addon].repository.split('/');
-            let version = await (context.github.repos.getLatestRelease(repo_splited[0], repo_splited[1])).data.tag_name
+            let release =  await context.github.repos.getLatestRelease({owner: repo_splited[0], repo: repo_splited[1]})
+            let version = release.data.tag_name
             let target = addon_manifest.addons[addon].target;
             let config_raw = await get_file_in_addon_repo(context, `${target}/config.json`);
             let config = JSON.parse(config_raw);
