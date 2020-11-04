@@ -88,9 +88,11 @@ module.exports = app => {
                 let info =  await dockerHubAPI.repository(url[0], url[1]);
                 app.log.info(`Repo: ${hub_url}` )
                 app.log.info(`Pull: ${info.pull_count}` )
-                if(info.pull_count > max)
+                if(info.pull_count > max){
                     max = info.pull_count;
                     max_arch = arch;
+                }
+                    
                 
             }
             temp['pull_image'] = hub_url.replace('{arch}', max_arch);
