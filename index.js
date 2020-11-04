@@ -85,7 +85,7 @@ module.exports = app => {
                 let arch = config.arch[arch_i];
                 let url = hub_url.replace('{arch}', arch).split('/');
                 
-                let info =  dockerHubAPI.repository(url[0], url[1]);
+                let info =  await dockerHubAPI.repository(url[0], url[1]);
                 app.log.info(`Repo: ${hub_url}` )
                 app.log.info(`Pull: ${info.pull_count}` )
                 if(info.pull_count > max)
