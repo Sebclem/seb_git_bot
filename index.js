@@ -30,11 +30,13 @@ module.exports = app => {
         // Get the target and addon_name from the manifest
         let target = "";
         let addon_name = "";
+        let image =  ""
         for(let addon in addon_manifest.addons){
             let repo = addon_manifest.addons[addon].repository;
             if(repo == repo_path){
                 target = addon_manifest.addons[addon].target;
                 addon_name = addon;
+                image = addon_manifest.addons[addon].image;
             }
             
         }
@@ -43,10 +45,11 @@ module.exports = app => {
         let rdme_template = await get_file_in_current_repo(context, `${target}/.README.ejs`);
         
         // Get config.json
-        let config_json = await get_file_in_addon_repo(context, `${target}/config.json`);
+        let config_json = await get_file_in_current_repo(context, `${target}/config.json`);
         config_json = JSON.parse(config_json);
         
         config_json['version'] = version;
+        config_json['image'] = image;
         config_json = JSON.stringify(config_json, null, 4)
         // Edit files of addon
         let files = {};
